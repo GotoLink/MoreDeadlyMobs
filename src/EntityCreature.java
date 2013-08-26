@@ -1,20 +1,19 @@
 package net.minecraft.src;
-// Decompiled by Jad v1.5.8g. Copyright 2001 Pavel Kouznetsov.
-// Jad home page: http://www.kpdus.com/jad.html
-// Decompiler options: packimports(3) braces deadcode 
 
-import java.util.Random;
-	
-//===================
-// START MORE DEADLY MOBS
-//===================
 import java.util.LinkedList;
+
+import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.modoptionsapi.ModBooleanOption;
-import net.minecraft.src.modoptionsapi.ModSliderOption;
-//===================
-// END MORE DEADLY MOBS
-//===================
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLiving;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.monster.EntityMob;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemTool;
+import net.minecraft.src.ModLoader;
+import net.minecraft.util.MathHelper;
+import net.minecraft.world.World;
 
 public class EntityCreature extends EntityLiving {
 	//===================
@@ -63,11 +62,11 @@ public class EntityCreature extends EntityLiving {
 	/**
 	* Sprinting speed from MDM
 	*/
-	private static final ModSliderOption sprintSpeed = mod_DiggingMobs.mobSprintSpeed;
+	private static final int sprintSpeed = mod_DiggingMobs.mobSprintSpeed;
 	/**
 	* Whether sprinting is enabled
 	*/
-	private static final ModBooleanOption sprintingEnabled = mod_DiggingMobs.mobsSprint;
+	private static final boolean sprintingEnabled = mod_DiggingMobs.mobsSprint;
 	
 	/**
 	* Definition of soft block.
@@ -107,7 +106,6 @@ public class EntityCreature extends EntityLiving {
     public EntityCreature(World world)
     {
         super(world);
-        hasAttacked = false;
 		
 		//===================
 		// START MORE DEADLY MOBS
@@ -123,71 +121,8 @@ public class EntityCreature extends EntityLiving {
 		//===================
     }
 
-    protected boolean func_25028_d_()
-    {
-        return false;
-    }
-
     protected void updatePlayerActionState()
     {
-        hasAttacked = func_25028_d_();
-        float f = 16F;
-        if(playerToAttack == null)
-        {
-            playerToAttack = findPlayerToAttack();
-            if(playerToAttack != null)
-            {
-                pathToEntity = worldObj.getPathToEntity(this, playerToAttack, f);
-            }
-        } else
-        if(!playerToAttack.isEntityAlive())
-        {
-            playerToAttack = null;
-        } else
-        {
-            float f1 = playerToAttack.getDistanceToEntity(this);
-            if(canEntityBeSeen(playerToAttack))
-            {
-                attackEntity(playerToAttack, f1);
-            }
-        }
-        if(!hasAttacked && playerToAttack != null && (pathToEntity == null || rand.nextInt(20) == 0))
-        {
-            pathToEntity = worldObj.getPathToEntity(this, playerToAttack, f);
-        } else
-        if(!hasAttacked && (pathToEntity == null && rand.nextInt(80) == 0 || rand.nextInt(80) == 0))
-        {
-            boolean flag = false;
-            int j = -1;
-            int k = -1;
-            int l = -1;
-            float f2 = -99999F;
-            for(int i1 = 0; i1 < 10; i1++)
-            {
-                int j1 = MathHelper.floor_double((posX + (double)rand.nextInt(13)) - 6D);
-                int k1 = MathHelper.floor_double((posY + (double)rand.nextInt(7)) - 3D);
-                int l1 = MathHelper.floor_double((posZ + (double)rand.nextInt(13)) - 6D);
-                float f3 = getBlockPathWeight(j1, k1, l1);
-                if(f3 > f2)
-                {
-                    f2 = f3;
-                    j = j1;
-                    k = k1;
-                    l = l1;
-                    flag = true;
-                }
-            }
-
-            if(flag)
-            {
-                pathToEntity = worldObj.getEntityPathToXYZ(this, j, k, l, 10F);
-            }
-        }
-        int i = MathHelper.floor_double(boundingBox.minY + 0.5D);
-        boolean flag1 = func_27013_ag();
-        boolean flag2 = handleLavaMovement();
-        rotationPitch = 0.0F;
-		
 		//===================
 		// START MORE DEADLY MOBS
 		//===================
@@ -528,13 +463,13 @@ public class EntityCreature extends EntityLiving {
 			if(flag) {
 				Minecraft mc = ModLoader.getMinecraftInstance();
 				// Huge ugly method call to play the block removed sound
-				mc.sndManager.playSound(block.stepSound.func_1146_a(), (float)i + 0.5F, (float)j + 0.5F, (float)k + 0.5F, (block.stepSound.func_1147_b() + 1.0F) / 2.0F, block.stepSound.func_1144_c() * 0.8F);
+				mc.sndManager.playSound(block.stepSound, (float)i + 0.5F, (float)j + 0.5F, (float)k + 0.5F, (block.stepSound.func_1147_b() + 1.0F) / 2.0F, block.stepSound.func_1144_c() * 0.8F);
 				//block.onBlockDestroyedByPlayer(world, i, j, k, i1);
 				
 				int drop = block.quantityDropped(rand);
 				// Unset the top block and drop as an item
 				if(drop > 0) {
-					int dropID = block.idDropped(metadata, rand);
+					int dropID = block.idDropped(metadata, rand, dropID);
 					// Avoid rendering null pointer errors
 					if((dropID > 0) && (dropID < Item.itemsList.length) 
 							&& (Item.itemsList[dropID] != null)) {
@@ -570,10 +505,10 @@ public class EntityCreature extends EntityLiving {
 			curBlockDamage += getBlockDamage(block);
 			// Play the sound
 			if(soundTimer % 4 == 0) {
-				mc.sndManager.playSound(block.stepSound.func_1145_d(), 
+				mc.sndManager.playSound(block.stepSound, 
 										(float)i + 0.5F, (float)j + 0.5F, (float)k + 0.5F, 
-										(block.stepSound.func_1147_b() + 1.0F) / 8F, 
-										block.stepSound.func_1144_c() * 0.5F);
+										(block.stepSound + 1.0F) / 8F, 
+										block.stepSound * 0.5F);
 			}
 			
 			soundTimer++;
@@ -779,8 +714,8 @@ public class EntityCreature extends EntityLiving {
 	* @return	float	Current move speed
 	*/
 	public float getCurrentMoveSpeed() {
-		if(mobCanSprint() && sprintingEnabled.getValue() && isSprinting) {
-			return (float) (moveSpeed * sprintSpeed.getIntValue());
+		if(mobCanSprint() && sprintingEnabled && isSprinting) {
+			return (float) (moveSpeed * sprintSpeed);
 		} else {
 			return moveSpeed;
 		}
@@ -929,49 +864,4 @@ public class EntityCreature extends EntityLiving {
 	//===================
 	// END MORE DEADLY MOBS
 	//===================
-    protected void attackEntity(Entity entity, float f)
-    {
-    }
-
-    protected float getBlockPathWeight(int i, int j, int k)
-    {
-        return 0.0F;
-    }
-
-    protected Entity findPlayerToAttack()
-    {
-        return null;
-    }
-
-    public boolean getCanSpawnHere()
-    {
-        int i = MathHelper.floor_double(posX);
-        int j = MathHelper.floor_double(boundingBox.minY);
-        int k = MathHelper.floor_double(posZ);
-        return super.getCanSpawnHere() && getBlockPathWeight(i, j, k) >= 0.0F;
-    }
-
-    public boolean hasPath()
-    {
-        return pathToEntity != null;
-    }
-
-    public void setPathToEntity(PathEntity pathentity)
-    {
-        pathToEntity = pathentity;
-    }
-
-    public Entity getTarget()
-    {
-        return playerToAttack;
-    }
-
-    public void setTarget(Entity entity)
-    {
-        playerToAttack = entity;
-    }
-
-    protected PathEntity pathToEntity;
-    protected Entity playerToAttack;
-    protected boolean hasAttacked;
 }
