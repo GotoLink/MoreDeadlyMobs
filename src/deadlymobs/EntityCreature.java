@@ -11,7 +11,6 @@ import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemTool;
-import net.minecraft.src.ModLoader;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 

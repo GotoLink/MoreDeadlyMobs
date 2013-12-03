@@ -27,19 +27,19 @@ public class mod_DiggingMobs {
 	/**
 	 * A whitelist of blocks a mob can destroy without tools
 	 */
-	private static Map<Integer, List<Integer>> destroyWhitelist = new HashMap();
+	private static Map<Integer, List<Integer>> destroyWhitelist = new HashMap<Integer, List<Integer>>();
 	/**
 	 * A whitelist of blocks a mob class can destroy without tools
 	 */
-	private static Map<String, List<Integer>> globalWhitelist = new HashMap();
+	private static Map<String, List<Integer>> globalWhitelist = new HashMap<String, List<Integer>>();
 	/**
 	 * A blacklist of blocks a mob do not destroy
 	 */
-	private static Map<Integer, List<Integer>> destroyBlacklist = new HashMap();
+	private static Map<Integer, List<Integer>> destroyBlacklist = new HashMap<Integer, List<Integer>>();
 	/**
 	 * Global blacklist of blocks to not destroy
 	 */
-	private static Map<String, List<Integer>> globalBlacklist = new HashMap();
+	private static Map<String, List<Integer>> globalBlacklist = new HashMap<String, List<Integer>>();
 
 	@EventHandler
 	public void load(FMLPreInitializationEvent event) {
@@ -65,7 +65,7 @@ public class mod_DiggingMobs {
 		}
 	}
 
-	private static List addToList(List list, int... data) {
+	private static List<Integer> addToList(List<Integer> list, int... data) {
 		for (int d : data) {
 			list.add(d);
 		}
