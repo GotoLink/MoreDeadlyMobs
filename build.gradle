@@ -1,0 +1,46 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            name = "forge"
+            url = "http://files.minecraftforge.net/maven"
+        }
+        maven {
+            name = "sonatype"
+            url = "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+    }
+}
+apply plugin: 'forge'
+minecraft {
+    version = "1.7.10-10.13.0.1208"
+    runDir = "eclipse"
+}
+version = "alpha"
+archivesBaseName = project.projectDir.name
+sourceSets.main.java{srcDirs 'src/deadlymobs'}
+processResources {
+    // this will ensure that this task is redone when the versions change.
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+    // replace stuff in mcmod.info, nothing else
+    from(project.sourceSets.main.resources.srcDirs) {
+        include "mcmod.info"
+        // replace version and mcversion
+        expand([version:project.version, mcversion:project.minecraft.version])
+    }
+    // copy everything else, thats not mcmod.info
+    from(project.sourceSets.main.resources.srcDirs) {
+        include("pack.mcmeta")
+    }
+}
+jar {
+    //Keep the jar as clean as possible
+    includeEmptyDirs = false
+    //Append with minecraft version
+    classifier = "("+minecraft.version+")"
+    archiveName = archivesBaseName + "-" + version + classifier+"."+extension
+}

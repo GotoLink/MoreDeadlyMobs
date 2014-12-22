@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/bin" />
+      <excludeFolder url="file://$MODULE_DIR$/gradle" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" exported="" name="Gradle: forgeSrc-1.7.10-10.13.2.1230" level="project" />
+    <orderEntry type="library" exported="" name="Gradle: guava-17.0" level="project" />
+    <orderEntry type="library" exported="" name="Gradle: jutils-1.0.0" level="project" />
+    <orderEntry type="library" exported="" name="Gradle: lwjgl-2.9.1" level="project" />
+    <orderEntry type="library" exported="" name="Gradle: lwjgl_util-2.9.1" level="project" />
+  </component>
+</module>
+
