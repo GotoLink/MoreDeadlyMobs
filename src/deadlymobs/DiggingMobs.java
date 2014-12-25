@@ -4,35 +4,74 @@ import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.Mod.EventHandler;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.registry.GameData;
 import net.minecraft.block.Block;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityCreature;
+import net.minecraft.entity.EntityList;
+import net.minecraft.entity.SharedMonsterAttributes;
+import net.minecraft.entity.ai.attributes.AttributeModifier;
+import net.minecraft.entity.ai.attributes.IAttributeInstance;
 import net.minecraft.entity.monster.EntityCreeper;
-import net.minecraft.entity.monster.EntityMob;
-import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
+import net.minecraftforge.event.entity.living.LivingEvent;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * @author Clinton Alexander
  */
-@Mod(modid = "diggingmobs", name = "More Deadly Mobs", version = "beta")
+@Mod(modid = "deadlymobs", name = "More Deadly Mobs", version = "${version}")
 public final class DiggingMobs {
+    private static final UUID sprintingSpeedBoostModifierUUID = UUID.fromString("662A6B8D-DA3E-4C1C-8813-96EA6097278D");//From EntityLivingBase
+    private static AttributeModifier sprintingSpeedBoostModifier;
     private static String[] diggers;
     private static String[] sprinters;
-    public static int sprintMultiplier;
-    private final// Items zombies can destroy
-            Block[] canDestroy = {Blocks.grass, Blocks.dirt, Blocks.sapling, Blocks.sand, Blocks.gravel, Blocks.log, Blocks.leaves, Blocks.sponge, Blocks.glass, Blocks.wool,
-            Blocks.yellow_flower, Blocks.red_flower, Blocks.brown_mushroom, Blocks.red_mushroom, Blocks.tnt, Blocks.torch, Blocks.chest, Blocks.redstone_wire, Blocks.wheat, Blocks.farmland,
-            Blocks.wooden_door, Blocks.lever, Blocks.stone_pressure_plate, Blocks.iron_door, Blocks.wooden_pressure_plate, Blocks.unlit_redstone_torch, Blocks.redstone_torch, Blocks.stone_button,
-            Blocks.snow_layer, Blocks.ice, Blocks.snow, Blocks.cactus, Blocks.clay, Blocks.reeds, Blocks.fence, Blocks.pumpkin, Blocks.netherrack, Blocks.soul_sand, Blocks.glowstone, Blocks.lit_pumpkin, Blocks.cake};
+    private static final HashMap<String, ArrayList<Block>> canDestroy = new HashMap<String, ArrayList<Block>>();
 
     @EventHandler
     public void load(FMLPreInitializationEvent event) {
         Configuration config = new Configuration(event.getSuggestedConfigurationFile());
         diggers = config.getStringList("Diggers", "General", new String[]{"Zombie", "Creeper", "Spider"}, "Use mob names to define which can dig");
+        String[] global = config.getStringList("Global", "Blacklist", new String[]{"golden_rail", "detector_rail", "jukebox", "glowstone", "stained_glass"}, "Blocks that will never be dug.");
+        for (String name : global) {
+            Block temp = GameData.getBlockRegistry().getObject(name);
+            if (temp != Blocks.air) {
+                EntityAIDig.addToGlobalBlackList(temp);
+            }
+        }
+        global = config.getStringList("Global", "Whitelist", new String[0], "Blocks that can be dug at any time.");
+        for (String name : global) {
+            Block temp = GameData.getBlockRegistry().getObject(name);
+            if (temp != Blocks.air) {
+                EntityAIDig.addToGlobalWhiteList(temp);
+            }
+        }
+        for (String text : diggers) {
+            String[] defaults = !text.equals("Zombie") ? new String[0] : new String[]{"grass", "dirt", "sapling", "sand",
+                    "gravel", "log", "leaves", "sponge", "glass", "wool", "yellow_flower", "red_flower", "brown_mushroom",
+                    "red_mushroom", "tnt", "torch", "chest", "redstone_wire", "wheat", "farmland", "wooden_door", "lever",
+                    "stone_pressure_plate", "iron_door", "wooden_pressure_plate", "unlit_redstone_torch", "redstone_torch",
+                    "stone_button", "snow_layer", "ice", "snow", "cactus", "clay", "reeds", "fence", "pumpkin", "netherrack",
+                    "soul_sand", "glowstone", "lit_pumpkin", "cake"};
+            global = config.getStringList(text, "Whitelist", defaults, "Blocks that can be dug by this entity at any time.");
+            ArrayList<Block> whites = new ArrayList<Block>();
+            for (String name : global) {
+                Block temp = GameData.getBlockRegistry().getObject(name);
+                if (temp != Blocks.air) {
+                    whites.add(temp);
+                }
+            }
+            canDestroy.put(text, whites);
+        }
         sprinters = config.getStringList("Sprinters", "General", new String[]{"Zombie", "Creeper", "Spider"}, "Use mob names to define which can sprint");
-        sprintMultiplier = config.getInt("Sprint speed multiplier", "general", 2, 0, 10, "Higher for more sprint speed.");
+        float sprintMultiplier = config.getFloat("Sprint speed multiplier", "General", 2.0F, 0.0F, 10.0F, "Higher for more sprint speed.");
+        sprintingSpeedBoostModifier = new AttributeModifier(sprintingSpeedBoostModifierUUID, "Sprinting speed boost", sprintMultiplier - 1, 2).setSaved(false);
         if (config.hasChanged()) {
             config.save();
         }
@@ -41,21 +80,49 @@ public final class DiggingMobs {
 
     @SubscribeEvent
     public void onMobSpawn(EntityJoinWorldEvent event) {
-        if (event.entity instanceof EntityMob) {
+        if (event.entity instanceof EntityCreature && canDig(event.entity)) {
             EntityAIDig taskDig;
             if (event.entity instanceof EntityCreeper) {
                 taskDig = new EntityCreeperAI((EntityCreeper) event.entity);
             } else {
-                taskDig = new EntityAIDig((EntityMob) event.entity).addToBlackList(Blocks.golden_rail, Blocks.detector_rail, Blocks.jukebox, Blocks.glowstone, Blocks.stained_glass);
-                if (event.entity instanceof EntityZombie) {
-                    taskDig.addToWhiteList(canDestroy);
+                taskDig = new EntityAIDig((EntityCreature) event.entity);
+                for (Block temp : canDestroy.get(EntityList.getEntityString(event.entity))) {
+                    if (temp != null) {
+                        taskDig.addToWhiteList(temp);
+                    }
                 }
             }
-            ((EntityMob) event.entity).tasks.addTask(3, taskDig);
+            ((EntityCreature) event.entity).tasks.addTask(3, taskDig);
         }
     }
 
-    public static boolean canDig(String mobType) {
+    @SubscribeEvent
+    public void onMobLiving(LivingEvent.LivingUpdateEvent event) {
+        if (event.entity instanceof EntityCreature && canSprint(event.entity)) {
+            IAttributeInstance iattributeinstance = ((EntityCreature) event.entity).getEntityAttribute(SharedMonsterAttributes.movementSpeed);
+            if (((EntityCreature) event.entity).getEntityToAttack() != null && ((EntityCreature) event.entity).hasPath()) {
+                if (!event.entity.isSprinting()) {
+                    if (iattributeinstance.getModifier(sprintingSpeedBoostModifierUUID) != null) {
+                        iattributeinstance.removeModifier(sprintingSpeedBoostModifier);
+                    }
+                    iattributeinstance.applyModifier(sprintingSpeedBoostModifier);
+                    event.entity.setSprinting(true);
+                }
+
+            } else if (iattributeinstance.getModifier(sprintingSpeedBoostModifierUUID) != null) {
+                iattributeinstance.removeModifier(sprintingSpeedBoostModifier);
+                if (event.entity.isSprinting()) {
+                    event.entity.setSprinting(false);
+                }
+            }
+        }
+    }
+
+    public static boolean canDig(Entity entity) {
+        return canDig(EntityList.getEntityString(entity));
+    }
+
+    private static boolean canDig(String mobType) {
         for (String name : diggers) {
             if (mobType.equals(name))
                 return true;
@@ -63,7 +130,11 @@ public final class DiggingMobs {
         return false;
     }
 
-    public static boolean canSprint(String mobType) {
+    public static boolean canSprint(Entity entity) {
+        return canSprint(EntityList.getEntityString(entity));
+    }
+
+    private static boolean canSprint(String mobType) {
         for (String name : sprinters) {
             if (mobType.equals(name))
                 return true;

@@ -21,7 +21,7 @@ public class EntityCreeperAI extends EntityAIDig {
     public void updateTask() {
         super.updateTask();
         EntityCreature closest = getClosestCreature();
-        if (!mob.isRiding() && closest.riddenByEntity == null && closest instanceof EntitySpider && !mob.hasPath()) {
+        if (!mob.isRiding() && closest instanceof EntitySpider && closest.riddenByEntity == null && !mob.hasPath()) {
             if (mob.getDistanceToEntity(closest) < 3F) {
                 mob.mountEntity(closest);
             }

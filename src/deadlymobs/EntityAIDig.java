@@ -1,18 +1,18 @@
 package deadlymobs;
 
-import cpw.mods.fml.common.ObfuscationReflectionHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
-import net.minecraft.entity.*;
+import net.minecraft.entity.CreatureAccess;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityCreature;
+import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAIBase;
 import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.item.ItemStack;
-import net.minecraft.pathfinding.PathEntity;
 import net.minecraft.util.MathHelper;
-import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
-import sun.awt.util.IdentityArrayList;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -23,8 +23,8 @@ public class EntityAIDig extends EntityAIBase {
     /**
      * Definition of soft block.
      */
-    public static final float SOFT_BLOCK_UPPER = 1F;
-    private static final Collection<Block> globalWhitelist = new IdentityArrayList<Block>(), globalBlacklist = new IdentityArrayList<Block>();
+    private static final float SOFT_BLOCK_UPPER = 1F;
+    private static final Collection<Block> globalWhitelist = new ArrayList<Block>(), globalBlacklist = new ArrayList<Block>();
     protected final EntityCreature mob;
     private final Collection<Block> canDigUnequipped;
     private final Collection<Block> cantDig;
@@ -49,16 +49,22 @@ public class EntityAIDig extends EntityAIBase {
     // Positions
     private int minI;
     private int maxI;
-    private int minJ;
     private int maxJ;
     private int minK;
     private int maxK;
-    private SprintHandler sprintHandler = new SprintHandler();
 
     public EntityAIDig(EntityCreature entityMob) {
         mob = entityMob;
-        canDigUnequipped = new IdentityArrayList<Block>();
-        cantDig = new IdentityArrayList<Block>();
+        canDigUnequipped = new ArrayList<Block>();
+        cantDig = new ArrayList<Block>();
+    }
+
+    public static void addToGlobalWhiteList(Block... blocks) {
+        Collections.addAll(globalWhitelist, blocks);
+    }
+
+    public static void addToGlobalBlackList(Block... blocks) {
+        Collections.addAll(globalBlacklist, blocks);
     }
 
     public EntityAIDig addToWhiteList(Block... blocks) {
@@ -103,80 +109,24 @@ public class EntityAIDig extends EntityAIBase {
 
     @Override
     public void updateTask() {
-        if (!mob.hasPath() || mob.getRNG().nextInt(100) == 0) {
-            mob.setPathToEntity(null);
+        Entity target;
+        if (mob.getEntityToAttack() != null) {
+            target = mob.getEntityToAttack();
         } else {
-            PathEntity pathToEntity = ObfuscationReflectionHelper.getPrivateValue(EntityCreature.class, mob, "pathToEntity", "field_70786_d");
-            Vec3 vec3d = pathToEntity.getPosition(mob);
-            for (double d = mob.width * 2.0F; vec3d != null && vec3d.squareDistanceTo(mob.posX, vec3d.yCoord, mob.posZ) < d * d; ) {
-                pathToEntity.incrementPathIndex();
-                if (pathToEntity.isFinished()) {
-                    vec3d = null;
-                    mob.setPathToEntity(null);
-                } else {
-                    vec3d = pathToEntity.getPosition(mob);
-                }
+            target = CreatureAccess.findPlayerToAttack(mob);
+            if (target != null) {
+                mob.setTarget(target);
+                mob.setPathToEntity(mob.worldObj.getPathEntityToEntity(mob, target, 16.0F, true, false, false, true));
             }
-            mob.isJumping = false;
-            if (vec3d != null) {
-                double d1 = vec3d.xCoord - mob.posX;
-                double d2 = vec3d.zCoord - mob.posZ;
-                double d3 = vec3d.yCoord - mob.boundingBox.minY + 0.5D;
-                float f4 = (float) ((Math.atan2(d2, d1) * 180D) / 3.1415927410125732D) - 90F;
-                float f5 = f4 - mob.rotationYaw;
-                //Adding sprint function here
-                mob.moveForward = sprintHandler.getCurrentMoveSpeed(mob);
-                for (; f5 < -180F; f5 += 360F) {
-                }
-                for (; f5 >= 180F; f5 -= 360F) {
-                }
-                if (f5 > 30F) {
-                    f5 = 30F;
-                }
-                if (f5 < -30F) {
-                    f5 = -30F;
-                }
-                mob.rotationYaw += f5;
-                if (CreatureAccess.hasAttacked(mob) && mob.getEntityToAttack() != null) {
-                    double d4 = mob.getEntityToAttack().posX - mob.posX;
-                    double d5 = mob.getEntityToAttack().posZ - mob.posZ;
-                    float f7 = mob.rotationYaw;
-                    mob.rotationYaw = (float) ((Math.atan2(d5, d4) * 180D) / 3.1415927410125732D) - 90F;
-                    float f6 = (((f7 - mob.rotationYaw) + 90F) * 3.141593F) / 180F;
-                    mob.moveStrafing = -MathHelper.sin(f6) * mob.moveForward * 1.0F;
-                    mob.moveForward = MathHelper.cos(f6) * mob.moveForward * 1.0F;
-                }
-                // Unecessary, handled by more deadly mobs
-                if (d3 > 0.0D && mob.getEntityToAttack() == null) {
-                    mob.isJumping = true;
-                }
-            }
-            if (mob.getEntityToAttack() != null) {
-                mob.faceEntity(mob.getEntityToAttack(), 30F, 30F);
-            }
-            // Sprint towards the player
-            if (mob.getEntityToAttack() != null && mob.hasPath()) {
-                sprintHandler.sprint();
-            } else {
-                sprintHandler.setSprinting(false);
-            }
-        }
-        // When the mob isn't chasing a player
-        if (mob.isCollidedHorizontally && !mob.hasPath()) {
-            mob.isJumping = true;
-        }
-        // Entity is in water.
-        if (mob.getRNG().nextFloat() < 0.8F && (mob.isInWater() || mob.handleLavaMovement())) {
-            mob.isJumping = true;
         }
         // More deadly mobs doesn't accept the fact that just because
         // the path isn't clear that the mob must stop searching.
-        // Instead, if it's close enough (16 blocks) it'll keep digging towards you
-        if (mob.getEntityToAttack() != null && mob.getDistanceToEntity(mob.getEntityToAttack()) < 16) {
-            digToEntity(mob.getEntityToAttack());
+        // Instead, if it's close enough (16 blocks) it'll keep digging towards its target
+        if (target != null && mob.getDistanceToEntity(target) < 16) {
+            digToEntity(target);
             if (!dug && mob.isCollidedHorizontally && isHeadRoom()) {
-                // Make the zombie jump onto the ledge
-                mob.isJumping = true;
+                // Make the mob jump onto the ledge
+                mob.setJumping(true);
             }
         } else {
             if (curBlockDamage > 0.0F) {
@@ -194,82 +144,80 @@ public class EntityAIDig extends EntityAIBase {
      */
     protected void digToEntity(Entity digToEntity) {
         boolean headRoom = isHeadRoom();
-        if (DiggingMobs.canDig(EntityList.getEntityString(mob))) {
-            // Radians for the X/Z plane bounded by 0 to 2PI
-            float radsXZ = mod((float) ((mob.rotationYaw * Math.PI) / 180F), (float) (2 * Math.PI));
-            // Current Positions
-            int curJ = MathHelper.floor_double(mob.posY);
-            // The entities positions
-            int entJ = MathHelper.floor_double(digToEntity.posY);
-            minI = MathHelper.floor_double(mob.boundingBox.minX);
-            maxI = MathHelper.floor_double(mob.boundingBox.maxX);
-            minJ = MathHelper.floor_double(mob.boundingBox.minY);
-            maxJ = MathHelper.floor_double(mob.boundingBox.maxY);
-            minK = MathHelper.floor_double(mob.boundingBox.minZ);
-            maxK = MathHelper.floor_double(mob.boundingBox.maxZ);
-            // Current rounded bounding boxes
-            int curMinI = minI;
-            int curMaxI = maxI;
-            int curMinK = minK;
-            int curMaxK = maxK;
-            // Facing -X
-            if (radsXZ >= Math.PI / 4 && radsXZ < (3 * Math.PI) / 4) {
-                // Since we're facing the minimum side, we dig just outside our own minI
-                minI = minI - 1;
-                maxI = minI;
-                // Facing -Z
-            } else if (radsXZ >= (3 * Math.PI) / 4 && radsXZ < (5 * Math.PI) / 4) {
-                // Since we're facing the minimum side, we dig just outside our own minI
-                minK = minK - 1;
-                maxK = minK;
-                // Facing +X
-            } else if (radsXZ >= (5 * Math.PI) / 4 && radsXZ < (7 * Math.PI) / 4) {
-                // Since we're facing the minimum side, we dig just outside our own minI
-                minI = maxI;
-                maxI = minI;
-                // Facing +Z
-            } else {
-                // Since we're facing the minimum side, we dig just outside our own minI
-                minK = maxK;
-                maxK = minK;
-            }
-            // A dug to say if we have successfully dug this turn
-            dug = false;
-            // Create an opening diagonally above enough to jump to
-            // the next ledge
-            if (entJ > curJ) {
+        // Radians for the X/Z plane bounded by 0 to 2PI
+        float radsXZ = mod((float) ((mob.rotationYaw * Math.PI) / 180F), (float) (2 * Math.PI));
+        // Current Positions
+        int curJ = MathHelper.floor_double(mob.posY);
+        // The entities positions
+        int entJ = MathHelper.floor_double(digToEntity.posY);
+        minI = MathHelper.floor_double(mob.boundingBox.minX);
+        maxI = MathHelper.floor_double(mob.boundingBox.maxX);
+        int minJ = MathHelper.floor_double(mob.boundingBox.minY);
+        maxJ = MathHelper.floor_double(mob.boundingBox.maxY);
+        minK = MathHelper.floor_double(mob.boundingBox.minZ);
+        maxK = MathHelper.floor_double(mob.boundingBox.maxZ);
+        // Current rounded bounding boxes
+        int curMinI = minI;
+        int curMaxI = maxI;
+        int curMinK = minK;
+        int curMaxK = maxK;
+        // Facing -X
+        if (radsXZ >= Math.PI / 4 && radsXZ < (3 * Math.PI) / 4) {
+            // Since we're facing the minimum side, we dig just outside our own minI
+            minI = minI - 1;
+            maxI = minI;
+            // Facing -Z
+        } else if (radsXZ >= (3 * Math.PI) / 4 && radsXZ < (5 * Math.PI) / 4) {
+            // Since we're facing the minimum side, we dig just outside our own minI
+            minK = minK - 1;
+            maxK = minK;
+            // Facing +X
+        } else if (radsXZ >= (5 * Math.PI) / 4 && radsXZ < (7 * Math.PI) / 4) {
+            // Since we're facing the minimum side, we dig just outside our own minI
+            minI = maxI;
+            maxI = minI;
+            // Facing +Z
+        } else {
+            // Since we're facing the minimum side, we dig just outside our own minI
+            minK = maxK;
+            maxK = minK;
+        }
+        // A dug to say if we have successfully dug this turn
+        dug = false;
+        // Create an opening diagonally above enough to jump to
+        // the next ledge
+        if (entJ > curJ) {
+            // Dig all spots above self first
+            dug = digBox(curMinI, curMaxI, maxJ + 1, maxJ + 1, curMinK, curMaxK);
+            // Dig a clearing in front of self to jump onto
+            dug = digBox(minI, maxI, minJ + 1, maxJ + 1, minK, maxK);
+            // Dig down, diagonal down and in front
+        } else if (entJ < curJ) {
+            if (mob.isCollidedHorizontally) {
                 // Dig all spots above self first
+                dug = digBox(curMinI, curMaxI, minJ - 1, minJ - 1, curMinK, curMaxK);
+            }
+            // Dig a clearing in front of self to jump onto
+            dug = digBox(minI, maxI, minJ - 1, maxJ - 1, minK, maxK);
+            // In this case, there may be an obstacle, like stone, at the feet of the mob
+            // try to make a clearing directly in front instead
+            dug = digBox(minI, maxI, maxJ + 1, maxJ + 1, minK, maxK);
+            // Dig in front
+        } else {
+            // Dig all blocks above the mob first
+            // And leave ground level as a special case
+            // Dig a clearing in front of self to jump onto
+            dug = digBox(minI, maxI, minJ + 1, maxJ, minK, maxK);
+            // Try ground level, if there is no headroom, keep digging forwards
+            if (!dug && !headRoom) {
+                dug = digBox(minI, maxI, minJ, minJ, minK, maxK);
+            }
+            // This means we're stuck and need to dig up and jump
+            if (!dug && mob.isCollidedHorizontally && !headRoom) {
+                // Dig space above self
                 dug = digBox(curMinI, curMaxI, maxJ + 1, maxJ + 1, curMinK, curMaxK);
-                // Dig a clearing in front of self to jump onto
-                dug = digBox(minI, maxI, minJ + 1, maxJ + 1, minK, maxK);
-                // Dig down, diagonal down and in front
-            } else if (entJ < curJ) {
-                if (mob.isCollidedHorizontally) {
-                    // Dig all spots above self first
-                    dug = digBox(curMinI, curMaxI, minJ - 1, minJ - 1, curMinK, curMaxK);
-                }
-                // Dig a clearing in front of self to jump onto
-                dug = digBox(minI, maxI, minJ - 1, maxJ - 1, minK, maxK);
-                // In this case, there may be an obstacle, like stone, at the feet of the mob
-                // try to make a clearing directly in front instead
+                // Dig headroom
                 dug = digBox(minI, maxI, maxJ + 1, maxJ + 1, minK, maxK);
-                // Dig in front
-            } else {
-                // Dig all blocks above the mob first
-                // And leave ground level as a special case
-                // Dig a clearing in front of self to jump onto
-                dug = digBox(minI, maxI, minJ + 1, maxJ, minK, maxK);
-                // Try ground level, if there is no headroom, keep digging forwards
-                if (!dug && !headRoom) {
-                    dug = digBox(minI, maxI, minJ, minJ, minK, maxK);
-                }
-                // This means we're stuck and need to dig up and jump
-                if (!dug && mob.isCollidedHorizontally && !headRoom) {
-                    // Dig space above self
-                    dug = digBox(curMinI, curMaxI, maxJ + 1, maxJ + 1, curMinK, curMaxK);
-                    // Dig headroom
-                    dug = digBox(minI, maxI, maxJ + 1, maxJ + 1, minK, maxK);
-                }
             }
         }
         if (!dug) {
