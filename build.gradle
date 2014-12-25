@@ -15,26 +15,25 @@ buildscript {
     }
 }
 apply plugin: 'forge'
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
+version = "1.0"
+archivesBaseName = "More Deadly Mobs"
 minecraft {
-    version = "1.7.10-10.13.0.1208"
+    version = "1.7.10-10.13.2.1230"
     runDir = "eclipse"
+    replace '${version}', project.version
 }
-version = "alpha"
-archivesBaseName = project.projectDir.name
-sourceSets.main.java{srcDirs 'src/deadlymobs'}
+sourceSets.main.java{srcDirs 'src'}
 processResources {
     // this will ensure that this task is redone when the versions change.
     inputs.property "version", project.version
     inputs.property "mcversion", project.minecraft.version
     // replace stuff in mcmod.info, nothing else
-    from(project.sourceSets.main.resources.srcDirs) {
+    from(project.projectDir) {
         include "mcmod.info"
         // replace version and mcversion
         expand([version:project.version, mcversion:project.minecraft.version])
-    }
-    // copy everything else, thats not mcmod.info
-    from(project.sourceSets.main.resources.srcDirs) {
-        include("pack.mcmeta")
     }
 }
 jar {

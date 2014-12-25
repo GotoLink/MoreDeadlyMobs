@@ -1,0 +1,16 @@
+[
+{
+  "modid": "deadlymobs",
+  "name": "More Deadly Mobs",
+  "description": "",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Clintonio", "GotoLink"],
+  "credits": "",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
