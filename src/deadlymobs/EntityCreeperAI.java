@@ -58,7 +58,7 @@ public class EntityCreeperAI extends EntityAIDig {
         }
         creeper.setCreeperState(1);
         timer++;
-        ObfuscationReflectionHelper.setPrivateValue(EntityCreeper.class, creeper, fields);
+        ObfuscationReflectionHelper.setPrivateValue(EntityCreeper.class, creeper, timer, fields);
         CreatureAccess.setHasAttacked(mob);
         if (timer >= 30) {
             mob.worldObj.createExplosion(mob, i, j, k, 3F, true);
