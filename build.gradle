@@ -20,8 +20,9 @@ targetCompatibility = 1.6
 version = "1.0"
 archivesBaseName = "More Deadly Mobs"
 minecraft {
-    version = "1.7.10-10.13.2.1230"
+    version = "1.8-11.14.1.1350"
     runDir = "eclipse"
+    mappings = "snapshot_20150401"
     replace '${version}', project.version
 }
 sourceSets.main.java{srcDirs 'src'}

@@ -1,15 +1,19 @@
 package deadlymobs;
 
-import cpw.mods.fml.common.ObfuscationReflectionHelper;
-import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
-import net.minecraft.entity.CreatureAccess;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EntityCreature;
 import net.minecraft.entity.monster.EntityCreeper;
 import net.minecraft.entity.monster.EntitySpider;
+import net.minecraft.util.BlockPos;
+
+import java.lang.reflect.Field;
 
 public class EntityCreeperAI extends EntityAIDig {
-    private static final String[] fields = {"timeSinceIgnited", "field_70833_d"};
+    private static final Field timeSinceIgnited = EntityCreeper.class.getDeclaredFields()[1];
+    static {
+        timeSinceIgnited.setAccessible(true);
+    }
     private final EntityCreeper creeper;
 
     public EntityCreeperAI(EntityCreeper creeper) {
@@ -35,9 +39,10 @@ public class EntityCreeperAI extends EntityAIDig {
      */
     @Override
     protected boolean attemptDig(int i, int j, int k) {
-        Block id = mob.worldObj.getBlock(i, j, k);
-        if (id.getMaterial() != Material.air) {
-            digThroughBlock(id, i, j, k);
+        BlockPos pos = new BlockPos(i, j, k);
+        IBlockState id = mob.worldObj.getBlockState(pos);
+        if (id.getBlock().getMaterial() != Material.air) {
+            digThroughBlock(id, pos);
             return true;
         } else {
             return false;
@@ -47,23 +52,27 @@ public class EntityCreeperAI extends EntityAIDig {
     /**
      * The action an entity does to dig through a block
      *
-     * @param id type of block to dig
+     * @param state type of block to dig
      */
     @Override
-    protected boolean digThroughBlock(Block id, int i, int j, int k) {
-        int timer = ObfuscationReflectionHelper.getPrivateValue(EntityCreeper.class, creeper, fields);
-        // Make the creeper explode at the player
-        if (timer == 0) {
-            mob.worldObj.playSoundAtEntity(mob, "random.fuse", 1.0F, 0.5F);
+    protected boolean digThroughBlock(IBlockState state, BlockPos pos) {
+        try {
+            int timer = (Integer)timeSinceIgnited.get(creeper);
+            // Make the creeper explode at the player
+            if (timer == 0) {
+                mob.playSound("creeper.primed", 1.0F, 0.5F);
+            }
+            creeper.setCreeperState(1);
+            timer++;
+            timeSinceIgnited.set(creeper, timer);
+            if (timer >= 30) {
+                mob.worldObj.createExplosion(mob, pos.getX(), pos.getY(), pos.getZ(), 3F, true);
+                mob.setDead();
+            }
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
         }
-        creeper.setCreeperState(1);
-        timer++;
-        ObfuscationReflectionHelper.setPrivateValue(EntityCreeper.class, creeper, timer, fields);
-        CreatureAccess.setHasAttacked(mob);
-        if (timer >= 30) {
-            mob.worldObj.createExplosion(mob, i, j, k, 3F, true);
-            mob.setDead();
-        }
-        return true;
     }
 }

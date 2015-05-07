@@ -2,13 +2,16 @@ package deadlymobs;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
-import net.minecraft.entity.CreatureAccess;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityCreature;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
+import net.minecraft.entity.ai.CreatureAccess;
 import net.minecraft.entity.ai.EntityAIBase;
 import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.BlockPos;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 
@@ -24,28 +27,31 @@ public class EntityAIDig extends EntityAIBase {
      * Definition of soft block.
      */
     private static final float SOFT_BLOCK_UPPER = 1F;
+    private static final int DIG_RANGE = 16, DIG_SFX = 2001, DIG_DELAY = 5;
     private static final Collection<Block> globalWhitelist = new ArrayList<Block>(), globalBlacklist = new ArrayList<Block>();
     protected final EntityCreature mob;
     private final Collection<Block> canDigUnequipped;
     private final Collection<Block> cantDig;
     /**
-     * A sound timer
+     * Sound timer
      */
-    private int soundTimer = 0;
-    // Flag to check if we have dug yet
-    private boolean dug = false;
+    private int soundTimer;
     /**
-     * A 5 tick delay for digging
+     * If we have dug yet
      */
-    private int digDelay = 5;
-    // Last coordinates dug
-    private int lastBlockX = 0;
-    private int lastBlockY = 0;
-    private int lastBlockZ = 0;
+    private boolean dug;
+    /**
+     * Tick delay for digging
+     */
+    private int digDelay = DIG_DELAY;
+    /**
+     * Last coordinates dug
+     */
+    private BlockPos lastBlock = BlockPos.ORIGIN;
     /**
      * Current block damage for a block
      */
-    private float curBlockDamage = 0.0F;
+    private float curBlockDamage;
     // Positions
     private int minI;
     private int maxI;
@@ -97,7 +103,7 @@ public class EntityAIDig extends EntityAIBase {
 
     @Override
     public void resetTask() {
-        mob.worldObj.destroyBlockInWorldPartially(mob.getEntityId(), lastBlockX, lastBlockY, lastBlockZ, -1);
+        mob.worldObj.sendBlockBreakProgress(mob.getEntityId(), lastBlock, -1);
         curBlockDamage = 0.0F;
         soundTimer = 0;
     }
@@ -109,30 +115,28 @@ public class EntityAIDig extends EntityAIBase {
 
     @Override
     public void updateTask() {
-        Entity target;
-        if (mob.getEntityToAttack() != null) {
-            target = mob.getEntityToAttack();
+        EntityLivingBase target;
+        if (mob.getNavigator().getPath() != null) {
+            target = mob.getAttackTarget();
         } else {
             target = CreatureAccess.findPlayerToAttack(mob);
             if (target != null) {
-                mob.setTarget(target);
-                mob.setPathToEntity(mob.worldObj.getPathEntityToEntity(mob, target, 16.0F, true, false, false, true));
+                mob.setAttackTarget(target);
+                mob.getNavigator().tryMoveToEntityLiving(target, 1.0D);
             }
         }
         // More deadly mobs doesn't accept the fact that just because
         // the path isn't clear that the mob must stop searching.
         // Instead, if it's close enough (16 blocks) it'll keep digging towards its target
-        if (target != null && mob.getDistanceToEntity(target) < 16) {
+        if (target != null && mob.getDistanceToEntity(target) < DIG_RANGE) {
             digToEntity(target);
             if (!dug && mob.isCollidedHorizontally && isHeadRoom()) {
                 // Make the mob jump onto the ledge
                 mob.setJumping(true);
             }
-        } else {
-            if (curBlockDamage > 0.0F) {
-                // Reset to all previous values as this is a new block to dig
-                resetTask();
-            }
+        } else  if (curBlockDamage > 0.0F) {
+            // Reset to all previous values as this is a new block to dig
+            resetTask();
         }
     }
 
@@ -150,12 +154,12 @@ public class EntityAIDig extends EntityAIBase {
         int curJ = MathHelper.floor_double(mob.posY);
         // The entities positions
         int entJ = MathHelper.floor_double(digToEntity.posY);
-        minI = MathHelper.floor_double(mob.boundingBox.minX);
-        maxI = MathHelper.floor_double(mob.boundingBox.maxX);
-        int minJ = MathHelper.floor_double(mob.boundingBox.minY);
-        maxJ = MathHelper.floor_double(mob.boundingBox.maxY);
-        minK = MathHelper.floor_double(mob.boundingBox.minZ);
-        maxK = MathHelper.floor_double(mob.boundingBox.maxZ);
+        minI = MathHelper.floor_double(mob.getEntityBoundingBox().minX);
+        maxI = MathHelper.floor_double(mob.getEntityBoundingBox().maxX);
+        int minJ = MathHelper.floor_double(mob.getEntityBoundingBox().minY);
+        maxJ = MathHelper.floor_double(mob.getEntityBoundingBox().maxY);
+        minK = MathHelper.floor_double(mob.getEntityBoundingBox().minZ);
+        maxK = MathHelper.floor_double(mob.getEntityBoundingBox().maxZ);
         // Current rounded bounding boxes
         int curMinI = minI;
         int curMaxI = maxI;
@@ -250,13 +254,14 @@ public class EntityAIDig extends EntityAIBase {
      * @return True if this block exists and was attempted to dig
      */
     protected boolean attemptDig(int i, int j, int k) {
-        Block id = mob.worldObj.getBlock(i, j, k);
+        BlockPos pos = new BlockPos(i, j, k);
+        IBlockState state = mob.worldObj.getBlockState(pos);
         // Remove the top block
-        if (id.getMaterial() != Material.air) {
+        if (state.getBlock().getMaterial() != Material.air) {
             // If it's a soft block, must be carrying nothing or a relevant tool
             // Random chance to destroy
-            if (inWhitelist(id) || canBreakBlock(id, i, j, k) && !inBlacklist(id)) {
-                digThroughBlock(id, i, j, k);
+            if (inWhitelist(state.getBlock()) || canBreakBlock(state, pos) && !inBlacklist(state.getBlock())) {
+                digThroughBlock(state, pos);
             }
             return true;
         } else {
@@ -267,18 +272,17 @@ public class EntityAIDig extends EntityAIBase {
     /**
      * The action an entity does to dig through a block
      *
-     * @param block type of block being destroyed
+     * @param state type of block being destroyed
      * @return Success of digging
      */
-    protected boolean digThroughBlock(Block block, int i, int j, int k) {
+    protected boolean digThroughBlock(IBlockState state, BlockPos pos) {
         boolean flag = false;
-        int metadata = mob.worldObj.getBlockMetadata(i, j, k);
-        if (!partialDig(block, i, j, k)) {
-            // Play breaking sound
-            flag = mob.worldObj.setBlockToAir(i, j, k);
+        if (!partialDig(state.getBlock(), pos)) {
+            flag = mob.worldObj.setBlockToAir(pos);
             if (flag) {
-                mob.worldObj.playAuxSFX(2001, i, j, k, Block.getIdFromBlock(block));
-                block.dropBlockAsItem(mob.worldObj, i, j, k, metadata, 0);
+                // Play breaking sound
+                mob.worldObj.playAuxSFX(DIG_SFX, pos, Block.getIdFromBlock(state.getBlock()));
+                state.getBlock().dropBlockAsItem(mob.worldObj, pos, state, 0);
             }
         }
         return flag;
@@ -289,34 +293,32 @@ public class EntityAIDig extends EntityAIBase {
      *
      * @param block Block attempting to dig
      */
-    protected boolean partialDig(Block block, int i, int j, int k) {
+    protected boolean partialDig(Block block, BlockPos pos) {
         // Whether we have fully dug the block or not
         boolean dug = false;
         // Check if we should delay the dig
         if (digDelay > 0) {
             digDelay--;
             // Check if we're still digging the previous block
-        } else if (i == lastBlockX && j == lastBlockY && k == lastBlockZ) {
-            curBlockDamage += getBlockDamage(block, i, j, k);
+        } else if (pos.equals(lastBlock)) {
+            curBlockDamage += getBlockDamage(block, pos);
             // Play the sound
             if (soundTimer % 4 == 0) {
-                mob.worldObj.playAuxSFX(2001, i, j, k, Block.getIdFromBlock(block));
+                mob.worldObj.playAuxSFX(DIG_SFX, pos, Block.getIdFromBlock(block));
             }
             soundTimer++;
             // Set that we have removed the block and reset data values
             if (curBlockDamage >= 1.0F) {
                 dug = true;
-                digDelay = 5;
+                digDelay = DIG_DELAY;
                 resetTask();
             } else {
-                mob.worldObj.destroyBlockInWorldPartially(mob.getEntityId(), i, j, k, MathHelper.floor_float(curBlockDamage));
+                mob.worldObj.sendBlockBreakProgress(mob.getEntityId(), pos, MathHelper.floor_float(curBlockDamage));
             }
         } else {
             // Reset to all previous values as this is a new block to dig
             resetTask();
-            lastBlockX = i;
-            lastBlockY = j;
-            lastBlockZ = k;
+            lastBlock = pos;
         }
         return !dug;
     }
@@ -326,20 +328,19 @@ public class EntityAIDig extends EntityAIBase {
      *
      * @return True if can dig through
      */
-    private boolean canBreakBlock(Block id, int i, int j, int k) {
-        return (mob.getHeldItem() == null && isSoftBlock(id, mob.worldObj, i, j, k)) || holdingEffectiveTool(id, mob.worldObj.getBlockMetadata(i, j, k));
+    private boolean canBreakBlock(IBlockState id, BlockPos pos) {
+        return (mob.getHeldItem() == null && isSoftBlock(id.getBlock(), mob.worldObj, pos)) || holdingEffectiveTool(id);
     }
 
     /**
      * Check if the tool the mob is holding is effective against the block type
      *
-     * @param b        the block type
-     * @param metadata the block subdata
+     * @param state  the block state
      * @return True if effective
      */
-    private boolean holdingEffectiveTool(Block b, int metadata) {
+    private boolean holdingEffectiveTool(IBlockState state) {
         ItemStack itemstack = mob.getHeldItem();
-        return b.getMaterial() != Material.air && itemstack != null && itemstack.getItem().getDigSpeed(itemstack, b, metadata) > 1.0F;
+        return state.getBlock().getMaterial() != Material.air && itemstack != null && itemstack.getItem().getDigSpeed(itemstack, state) > 1.0F;
     }
 
     /**
@@ -350,7 +351,7 @@ public class EntityAIDig extends EntityAIBase {
     private boolean isHeadRoom() {
         for (int digI = minI; !dug && digI <= maxI; digI++) {
             for (int digK = minK; !dug && digK <= maxK; digK++) {
-                if (mob.worldObj.getBlock(digI, maxJ + 1, digK).getMaterial() != Material.air) {
+                if (!mob.worldObj.isAirBlock(new BlockPos(digI, maxJ + 1, digK))) {
                     return false;
                 }
             }
@@ -385,8 +386,8 @@ public class EntityAIDig extends EntityAIBase {
      * @param block Block being attacked
      * @return Damage counter
      */
-    public float getBlockDamage(Block block, int i, int j, int k) {
-        float blockHardness = block.getBlockHardness(mob.worldObj, i, j, k);
+    public float getBlockDamage(Block block, BlockPos pos) {
+        float blockHardness = block.getBlockHardness(mob.worldObj, pos);
         float f = (1F / blockHardness) / 100F;
         // A little bit of a hack to avoid editing entity mob
         if (mob instanceof EntityMob) {
@@ -407,8 +408,8 @@ public class EntityAIDig extends EntityAIBase {
      *
      * @return True if the block is considered soft
      */
-    public static boolean isSoftBlock(Block block, World world, int i, int j, int k) {
-        return block.getBlockHardness(world, i, j, k) < SOFT_BLOCK_UPPER;
+    public static boolean isSoftBlock(Block block, World world, BlockPos pos) {
+        return block.getBlockHardness(world, pos) < SOFT_BLOCK_UPPER;
     }
 
     /**

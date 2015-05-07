@@ -1,10 +1,5 @@
 package deadlymobs;
 
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.Mod.EventHandler;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.registry.GameData;
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityCreature;
@@ -18,6 +13,11 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod.EventHandler;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.registry.GameData;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -100,7 +100,7 @@ public final class DiggingMobs {
     public void onMobLiving(LivingEvent.LivingUpdateEvent event) {
         if (event.entity instanceof EntityCreature && canSprint(event.entity)) {
             IAttributeInstance iattributeinstance = ((EntityCreature) event.entity).getEntityAttribute(SharedMonsterAttributes.movementSpeed);
-            if (((EntityCreature) event.entity).getEntityToAttack() != null && ((EntityCreature) event.entity).hasPath()) {
+            if (((EntityCreature) event.entity).hasPath() && ((EntityCreature)event.entity).getAttackTarget()!=null) {
                 if (!event.entity.isSprinting()) {
                     if (iattributeinstance.getModifier(sprintingSpeedBoostModifierUUID) != null) {
                         iattributeinstance.removeModifier(sprintingSpeedBoostModifier);
